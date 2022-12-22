@@ -1,4 +1,4 @@
-package main
+package models
 
 type User struct {
 	UID      string `json:"uid"`
@@ -7,7 +7,7 @@ type User struct {
 	Password string `json:"password"`
 	Email    string `json:"email"`
 	Status   bool   `json:"status"`
-	Role     string `json:"user_role"`
+	Role     string `json:"role"`
 }
 
 type Employee struct {
