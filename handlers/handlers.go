@@ -2,11 +2,15 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/gary-stroup-developer/bkend-dms/models"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -32,12 +36,12 @@ func (m *Repository) Login(res http.ResponseWriter, req *http.Request) {
 	defer cancel()
 
 	_, err := m.DB.Collection("User").InsertOne(ctx, models.User{
-		UID:      "X345901",
-		FName:    "User",
-		LName:    "Testing",
-		Password: "password",
+		UID:      "X345904",
+		FName:    "User3",
+		LName:    "Testing3",
+		Password: "password3",
 		Email:    "usertest@gmail.com",
-		Status:   true,
+		Status:   false,
 		Role:     "user",
 	})
 
@@ -48,8 +52,22 @@ func (m *Repository) Login(res http.ResponseWriter, req *http.Request) {
 }
 
 func (m *Repository) Dashboard(res http.ResponseWriter, req *http.Request) {
-	io.WriteString(res, `This is the dashboard page. I will fetch all active jobs for all active users and return their total weight 
-	to determine capacity`)
+
+	filter := bson.D{{"email", `usertest@gmail.com`}}
+
+	var result models.User
+	if err := m.DB.Collection("User").FindOne(context.TODO(), filter).Decode(&result); err != nil {
+		panic(err)
+	}
+
+	//data, err := bson.Marshal(result)
+	marsh, err := json.Marshal(result)
+
+	if err != nil {
+		log.Println("oppsy someone had a poopsie")
+	}
+	fmt.Fprintln(res, string(marsh))
+
 }
 
 func (m *Repository) UserProfile(res http.ResponseWriter, req *http.Request) {
@@ -57,7 +75,14 @@ func (m *Repository) UserProfile(res http.ResponseWriter, req *http.Request) {
 }
 
 func (m *Repository) CreateJob(res http.ResponseWriter, req *http.Request) {
-	io.WriteString(res, "Creating a new job for...")
+	payload, err := io.ReadAll(req.Body)
+	if err != nil {
+		http.Error(res, "request has been denied", http.StatusBadRequest)
+	}
+
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	res.Write(payload)
 }
 
 func (m *Repository) ReadJob(res http.ResponseWriter, req *http.Request) {
