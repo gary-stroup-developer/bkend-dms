@@ -1,21 +1,21 @@
 package models
 
 type User struct {
-	UID      string `bson:"uid" json:"uid"`
-	FName    string `bson:"fname" json:"fname"`
-	LName    string `bson:"lname" json:"lname"`
-	Password string `bson:"password" json:"password"`
-	Email    string `jbson:"email" son:"email"`
-	Status   bool   `bson:"status" json:"status"`
-	Role     string `bson:"role" json:"role"`
+	UID       string `bson:"uid" json:"uid"`
+	Firstname string `bson:"firstname" json:"firstname"`
+	Lastname  string `bson:"lastname" json:"lastname"`
+	Password  string `bson:"password" json:"password"`
+	Email     string `bson:"email" json:"email"`
+	Status    bool   `bson:"status" json:"status"`
+	Role      string `bson:"role" json:"role"`
 }
 
 type Employee struct {
-	UID      string `json:"uid"`
-	FName    string `json:"fname"`
-	LName    string `json:"lname"`
-	Password string `json:"password"`
-	Email    string `json:"email"`
+	UID       string `bson:"uid" json:"uid"`
+	Firstname string `bson:"firstname" json:"fname"`
+	Lastname  string `bson:"lastname" json:"lname"`
+	Password  string `bson:"password" json:"password"`
+	Email     string `bson:"email" json:"email"`
 }
 
 type Product struct {

@@ -12,6 +12,7 @@ import (
 	"github.com/gary-stroup-developer/bkend-dms/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Repository struct {
@@ -30,25 +31,40 @@ func NewRepo(r *Repository) {
 }
 
 func (m *Repository) Login(res http.ResponseWriter, req *http.Request) {
+	payload, err := io.ReadAll(req.Body)
+	if err != nil {
+		http.Error(res, "Login attempt failed", http.StatusBadRequest)
+	}
 
-	//use this context to disconnect from mongo
+	var user models.User
+	var userPayload models.User
+
+	err = json.Unmarshal(payload, &userPayload)
+	if err != nil {
+		http.Error(res, "Sorry. There seems to be an issue connecting to the database", http.StatusInternalServerError)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	_, err := m.DB.Collection("User").InsertOne(ctx, models.User{
-		UID:      "X345904",
-		FName:    "User3",
-		LName:    "Testing3",
-		Password: "password3",
-		Email:    "usertest@gmail.com",
-		Status:   false,
-		Role:     "user",
-	})
-
-	if err != nil {
-		io.WriteString(res, "Document not inserted")
+	filter := bson.D{{Key: "uid", Value: userPayload.UID}}
+	if err = m.DB.Collection("User").FindOne(ctx, filter).Decode(&user); err != nil {
+		http.Error(res, "Sorry. User information unavailable at this time", http.StatusInternalServerError)
 	}
-	io.WriteString(res, "You are now on the login page")
+
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(userPayload.Password))
+	if err != nil {
+		http.Error(res, "username and/or password do not match", http.StatusBadRequest)
+	}
+
+	response, err := json.Marshal(&user)
+	if err != nil {
+		http.Error(res, "Unable to send user info", http.StatusInternalServerError)
+	}
+
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	res.Write(response)
 }
 
 func (m *Repository) Dashboard(res http.ResponseWriter, req *http.Request) {
@@ -103,7 +119,58 @@ func (m *Repository) UpdateJobStatus(res http.ResponseWriter, req *http.Request)
 
 // Admin operations
 func (m *Repository) CreateUser(res http.ResponseWriter, req *http.Request) {
-	io.WriteString(res, "Admin is creating user...")
+	request, _ := io.ReadAll(req.Body)
+
+	var user models.User
+
+	err := json.Unmarshal(request, &user)
+	if err != nil {
+		http.Error(res, "data not available. Please submit again", 400)
+	}
+	//needed only to generate an employee in the database. won't exist in production
+	// bs, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.MinCost)
+	// if err != nil {
+	// 	http.Error(res, "having trouble receiving the data", http.StatusBadRequest)
+	// 	return
+	// }
+
+	// pass := string(bs)
+
+	// _, err = m.DB.Collection("Employee").InsertOne(ctx, models.Employee{
+	// 	UID:       user.UID,
+	// 	Firstname: "Employee",
+	// 	Lastname:  "One",
+	// 	Password:  pass,
+	// 	Email:     "employeeone@dmsapp.io",
+	// })
+
+	// if err != nil {
+	// 	http.Error(res, "employee not inserted", 500)
+	// 	return
+	// }
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// filter the Employee DB and return user data where UID matches what was sent from frontend
+	filter := bson.D{{Key: "uid", Value: user.UID}}
+	if err = m.DB.Collection("Employee").FindOne(ctx, filter).Decode(&user); err != nil {
+		http.Error(res, "employee not inserted", http.StatusBadRequest)
+		return
+	}
+
+	user.Status = true
+	user.Role = "user"
+
+	_, err = m.DB.Collection("User").InsertOne(ctx, &user)
+	if err != nil {
+		http.Error(res, "employee not inserted into user DB", http.StatusBadRequest)
+		return
+	}
+	response, _ := json.Marshal(&user.Role)
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	res.Write(response)
 }
 
 func (m *Repository) SetToInactive(res http.ResponseWriter, req *http.Request) {
@@ -113,3 +180,20 @@ func (m *Repository) SetToInactive(res http.ResponseWriter, req *http.Request) {
 func (m *Repository) CreateProductInfo(res http.ResponseWriter, req *http.Request) {
 	io.WriteString(res, "Admin is adding new product info to system")
 }
+
+// //use this context to disconnect from mongo
+
+// _, err := m.DB.Collection("User").InsertOne(ctx, models.User{
+// 	UID:      "X345904",
+// 	FName:    "User3",
+// 	LName:    "Testing3",
+// 	Password: "password3",
+// 	Email:    "usertest@gmail.com",
+// 	Status:   false,
+// 	Role:     "user",
+// })
+
+// if err != nil {
+// 	io.WriteString(res, "Document not inserted")
+// }
+// io.WriteString(res, "You are now on the login page")
