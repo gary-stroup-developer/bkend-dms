@@ -53,7 +53,7 @@ func (m *Repository) Login(res http.ResponseWriter, req *http.Request) {
 
 func (m *Repository) Dashboard(res http.ResponseWriter, req *http.Request) {
 
-	filter := bson.D{{"email", `usertest@gmail.com`}}
+	filter := bson.D{{Key: "email", Value: `usertest@gmail.com`}}
 
 	var result models.User
 	if err := m.DB.Collection("User").FindOne(context.TODO(), filter).Decode(&result); err != nil {
@@ -77,7 +77,7 @@ func (m *Repository) UserProfile(res http.ResponseWriter, req *http.Request) {
 func (m *Repository) CreateJob(res http.ResponseWriter, req *http.Request) {
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
-		http.Error(res, "request has been denied", http.StatusBadRequest)
+		http.Error(res, "request has been denied", 404)
 	}
 
 	res.Header().Set("Content-Type", "application/json")

@@ -11,6 +11,7 @@ import (
 	"github.com/gary-stroup-developer/bkend-dms/handlers"
 	"github.com/gary-stroup-developer/bkend-dms/routes"
 	"github.com/joho/godotenv"
+	"github.com/rs/cors"
 )
 
 func main() {
@@ -23,6 +24,7 @@ func main() {
 
 	//create a new server
 	srv := http.NewServeMux()
+	handler := cors.Default().Handler(srv)
 
 	//connect to the database
 	client, err := driver.ConnectDB(user, pass, host)
@@ -49,5 +51,5 @@ func main() {
 
 	//pass the server to the routes func to handle the routes
 	routes.Routes(srv)
-	log.Fatalln(http.ListenAndServe(":8080", srv))
+	log.Fatalln(http.ListenAndServe(":8080", handler))
 }
