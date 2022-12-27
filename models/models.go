@@ -7,13 +7,14 @@ import (
 )
 
 type User struct {
-	UID       string `bson:"uid" json:"uid"`
-	Firstname string `bson:"firstname" json:"firstname"`
-	Lastname  string `bson:"lastname" json:"lastname"`
-	Password  string `bson:"password" json:"password"`
-	Email     string `bson:"email" json:"email"`
-	Status    bool   `bson:"status" json:"status"`
-	Role      string `bson:"role" json:"role"`
+	UID       string  `bson:"uid" json:"uid"`
+	Firstname string  `bson:"firstname" json:"firstname"`
+	Lastname  string  `bson:"lastname" json:"lastname"`
+	Password  string  `bson:"password" json:"password"`
+	Email     string  `bson:"email" json:"email"`
+	Status    bool    `bson:"status" json:"status"`
+	Role      string  `bson:"role" json:"role"`
+	Capacity  float64 `bson:"capacity" json:"capacity"`
 }
 
 type Employee struct {
@@ -25,14 +26,14 @@ type Employee struct {
 }
 
 type Product struct {
-	CatNum      string
-	Description string
-	RawPN       string
-	RawDesc     string
-	Weight      float64
+	Cat_Num     string `bson:"cat_num" json:"cat_num"`
+	Description string `bson:"description" json:"description"`
+	Raw_PN      string
+	Raw_Desc    string
+	Weight      float64 `bson:"weight" json:"weight"`
 }
 
-type FSR struct {
+type Location struct {
 	Tank        string
 	Cane        string
 	Box         string
@@ -40,7 +41,9 @@ type FSR struct {
 	PN          string
 	LN          string
 	Description string
-	Qty         int64
+	Density     string
+	Vial_Init   string
+	Media       string
 }
 
 type CBR struct {
@@ -53,7 +56,7 @@ type CBR struct {
 	Description    string
 	Density        string
 	Vial_Init      string
-	Location       []FSR
+	Location       []Location
 }
 
 type Job struct {
@@ -72,8 +75,6 @@ type Job struct {
 	UID        string    `bson:"uid,omitempty" json:"uid,omitempty"`
 	FSR        string    `bson:"fsr,omitempty" json:"fsr,omitempty"`
 	CBR        CBR       `bson:"cbr,omitempty" json:"cbr,omitempty"`
-	Late       bool      `bson:"late,omitempty" json:"late,omitempty"`
-	Count      int       `bson:"count,omitempty" json:"count,omitempty"`
 }
 
 type DashboardResponse struct {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gary-stroup-developer/bkend-dms/models"
+	uuid "github.com/satori/go.uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
@@ -32,6 +33,7 @@ func (m *Repository) Login(res http.ResponseWriter, req *http.Request) {
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
 		http.Error(res, "Login attempt failed", http.StatusBadRequest)
+		return
 	}
 
 	var user models.User
@@ -40,6 +42,7 @@ func (m *Repository) Login(res http.ResponseWriter, req *http.Request) {
 	err = json.Unmarshal(payload, &userPayload)
 	if err != nil {
 		http.Error(res, "Sorry. There seems to be an issue connecting to the database", http.StatusInternalServerError)
+		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -48,11 +51,13 @@ func (m *Repository) Login(res http.ResponseWriter, req *http.Request) {
 	filter := bson.D{{Key: "uid", Value: userPayload.UID}}
 	if err = m.DB.Collection("User").FindOne(ctx, filter).Decode(&user); err != nil {
 		http.Error(res, "Sorry. User information unavailable at this time", http.StatusInternalServerError)
+		return
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(userPayload.Password))
 	if err != nil {
 		http.Error(res, "username and/or password do not match", http.StatusBadRequest)
+		return
 	}
 
 	//store the user info in the repository to be accessed at other routes
@@ -61,6 +66,7 @@ func (m *Repository) Login(res http.ResponseWriter, req *http.Request) {
 	response, err := json.Marshal(&user)
 	if err != nil {
 		http.Error(res, "Unable to send user info", http.StatusInternalServerError)
+		return
 	}
 
 	res.Header().Set("Content-Type", "application/json")
@@ -69,9 +75,9 @@ func (m *Repository) Login(res http.ResponseWriter, req *http.Request) {
 }
 
 func (m *Repository) Dashboard(res http.ResponseWriter, req *http.Request) {
-	// create the stages to get users who are active, then return everything except the password
+	// create the stages to get users who are active, then return everything except the password & status
 	matchStage := bson.D{{Key: "$match", Value: bson.D{{Key: "status", Value: true}, {Key: "role", Value: "user"}}}}
-	unsetStage := bson.D{{Key: "$unset", Value: bson.A{"password"}}}
+	unsetStage := bson.D{{Key: "$unset", Value: bson.A{"password", "status"}}}
 
 	var users []bson.M //will hold the user data retrieved from the database
 
@@ -79,99 +85,139 @@ func (m *Repository) Dashboard(res http.ResponseWriter, req *http.Request) {
 	cursor, err := m.DB.Collection("User").Aggregate(context.TODO(), mongo.Pipeline{matchStage, unsetStage})
 	if err != nil {
 		http.Error(res, "trouble connecting to server", http.StatusInternalServerError)
+		return
 	}
 	defer cursor.Close(context.TODO())
 
 	cursor.All(context.TODO(), &users) //store all active users in database
 
+	payload, _ := json.Marshal(&users)
+	res.Header().Set("content-type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	res.Write(payload)
+}
+
+func (m *Repository) UserProfile(res http.ResponseWriter, req *http.Request) {
+	var id string
+	payload, err := io.ReadAll(req.Body)
+	if err != nil {
+		http.Error(res, "Trouble retrieving information", http.StatusBadRequest)
+		return
+	}
+
+	if err = json.Unmarshal(payload, &id); err != nil {
+		http.Error(res, "user profile unmarshal", http.StatusBadRequest)
+		return
+	}
+
+	var user []bson.M //will hold the user data retrieved from the database
+	filter := bson.D{{Key: "uid", Value: id}}
+	//search for user with the id passed to the payload
+	cursor := m.DB.Collection("User").FindOne(context.TODO(), filter).Decode(&user)
+	if cursor.Error() != "" {
+		http.Error(res, "trouble connecting to server", http.StatusInternalServerError)
+		return
+	}
+
+	var jobs []bson.M //stores the results of query. Advantage is that this wont throw errors as may decoding into struct might
+
 	//create stages for job query
-	stageOne := bson.D{{Key: "$match", Value: bson.D{{Key: "status", Value: "wip"}}}}
-	stageTwo := bson.D{{Key: "$unset", Value: bson.A{"cat_num", "cat_desc", "cat_lot", "raw_pn", "raw_desc", "qty", "start_date", "end_date", "notes"}}}
-	stageThree := bson.D{
+	stageOne := bson.D{{Key: "$match", Value: bson.D{{Key: "uid", Value: id}}}}
+	stageTwo := bson.D{
 		{Key: "$group", Value: bson.D{
-			{Key: "_id", Value: "$uid"},
+			{Key: "_id", Value: "$status"},
 			{Key: "jobs", Value: bson.D{{Key: "$push", Value: "$$ROOT"}}},
 		}},
 	}
 
-	var jobs []bson.M
-	//use aggregate func to query results using pipeline
-	c, err := m.DB.Collection("Jobs").Aggregate(context.TODO(), mongo.Pipeline{stageOne, stageTwo, stageThree})
+	c, err := m.DB.Collection("Jobs").Aggregate(context.TODO(), mongo.Pipeline{stageOne, stageTwo})
 	if err != nil {
-		http.Error(res, "trouble connecting to server", http.StatusInternalServerError)
+		http.Error(res, "no jobs found for user", http.StatusInternalServerError)
+		return
 	}
 	defer c.Close(context.TODO())
 
-	c.All(context.TODO(), &jobs) //store all active users in database
-	// userinfo, _ := json.Marshal(&users)
-	// data, _ := json.Marshal(&jobs)
+	if err = c.All(context.TODO(), &jobs); err != nil {
+		http.Error(res, "database connection is faulty", http.StatusInternalServerError)
+		return
+	}
+	var profile models.DashboardResponse
+	profile.Users = user
+	profile.Jobs = jobs
+	response, _ := json.Marshal(&profile)
 
-	marshalData := models.DashboardResponse{Users: users, Jobs: jobs}
-	payload, _ := json.Marshal(&marshalData)
-	res.Write(payload)
-
-}
-
-func (m *Repository) TestDash(res http.ResponseWriter, req *http.Request) {
-
-}
-
-func (m *Repository) UserProfile(res http.ResponseWriter, req *http.Request) {
-	io.WriteString(res, "This is the user profile page. Specific to the user with a UID")
+	res.Header().Set("content-type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	res.Write(response)
 }
 
 func (m *Repository) CreateJob(res http.ResponseWriter, req *http.Request) {
-	// payload, err := io.ReadAll(req.Body)
-	// if err != nil {
-	// 	http.Error(res, "request has been denied", 404)
-	// }
-	// insert code goes here
-
-	// 	Cat_Num        string
-	// Cat_Desc       string
-	// Cat_Lot        string
-	// Raw_PN         string
-	// Raw_Desc       string
-	// Qty            string
-	// Start_date     string
-	// End_date       string
-	// Notes          string
-	// Weight         int
-	// Status         string
-	// UID            string
-
-	// const shortForm = "2006-01-02"
-	// time1, _ := time.Parse(shortForm, "2022-10-29")
-	// time2, _ := time.Parse(shortForm, "2022-10-31")
-	// time3, _ := time.Parse(shortForm, "2022-11-02")
-	// time4, _ := time.Parse(shortForm, "2022-12-02")
-	// time5, _ := time.Parse(shortForm, "2022-12-16")
-	// time6, _ := time.Parse(shortForm, "2022-12-29")
-	// start1 := primitive.NewDateTimeFromTime(time1)
-	// start2 := primitive.NewDateTimeFromTime(time2)
-	// start3 := primitive.NewDateTimeFromTime(time3)
-	// start4 := primitive.NewDateTimeFromTime(time4)
-	// start5 := primitive.NewDateTimeFromTime(time5)
-	// start6 := primitive.NewDateTimeFromTime(time6)
-
-	docs := []interface{}{
-		bson.D{{Key: "cat_num", Value: "M349800"}, {Key: "cat_lot", Value: "210999"}, {Key: "raw_pn", Value: "15042"}, {Key: "raw_desc", Value: "prod1"}, {Key: "qty", Value: "100"}, {Key: "weight", Value: 0.5}, {Key: "status", Value: "wip"}, {Key: "uid", Value: "X202202"}},
-		bson.D{{Key: "cat_num", Value: "M349801"}, {Key: "cat_lot", Value: "210945"}, {Key: "raw_pn", Value: "15743"}, {Key: "raw_desc", Value: "prod2"}, {Key: "qty", Value: "500"}, {Key: "weight", Value: 0.75}, {Key: "status", Value: "wip"}, {Key: "uid", Value: "X202203"}},
-		bson.D{{Key: "cat_num", Value: "M350311"}, {Key: "cat_lot", Value: "211000"}, {Key: "raw_pn", Value: "16210"}, {Key: "raw_desc", Value: "prod3"}, {Key: "qty", Value: "25"}, {Key: "weight", Value: 1}, {Key: "status", Value: "wip"}, {Key: "uid", Value: "X202204"}},
-	}
-	_, err := m.DB.Collection("Jobs").InsertMany(context.TODO(), docs)
-
+	//read in the data sent by axios request
+	payload, err := io.ReadAll(req.Body)
 	if err != nil {
-		panic(err)
+		http.Error(res, "request has been denied", 404)
 	}
 
-	// res.Header().Set("Content-Type", "application/json")
-	// res.WriteHeader(http.StatusOK)
-	// res.Write(payload)
+	var job models.Job
+	jobID := uuid.NewV4().String()
+	//store data into the job variable of type Job
+	if err = json.Unmarshal(payload, &job); err != nil {
+		http.Error(res, "could not parse data", http.StatusBadRequest)
+		return
+	}
+	job.ID = jobID
+	job.UID = m.UserInfo.UID
+
+	_, err = m.DB.Collection("Jobs").InsertOne(context.TODO(), job) //insert the job into the Jobs Collection
+	if err != nil {
+		http.Error(res, "The job was not saved! Please resubmit", http.StatusInternalServerError)
+		return
+	}
+
+	//extract weight of job and increment the capacity field of user by the weight value
+	weight := job.Weight
+	matchStage := bson.D{{Key: "$match", Value: bson.D{{Key: "uid", Value: job.UID}}}}
+	updateStage := bson.D{{Key: "$inc", Value: bson.D{{Key: "capacity", Value: weight}}}}
+	//run pipeline
+	_, err = m.DB.Collection("User").Aggregate(context.TODO(), mongo.Pipeline{matchStage, updateStage})
+	if err != nil {
+		http.Error(res, "could not update the user capacity", http.StatusInternalServerError)
+		return
+	}
+
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	res.Write([]byte("The job was successfully created. User capacity has been updated"))
 }
 
 func (m *Repository) ReadJob(res http.ResponseWriter, req *http.Request) {
-	io.WriteString(res, "Reading job with ID...")
+	payload, err := io.ReadAll(req.Body)
+	if err != nil {
+		http.Error(res, "trouble parsing data", http.StatusBadRequest)
+		return
+	}
+
+	var id string
+	json.Unmarshal(payload, &id)
+	//create stages for job query
+	filter := bson.D{{Key: "uid", Value: m.UserInfo.UID}, {Key: "id", Value: id}}
+
+	var job []bson.M
+	//use aggregate func to query results using pipeline
+	c := m.DB.Collection("Jobs").FindOne(context.TODO(), filter).Decode(&job)
+	if c.Error() != "" {
+		http.Error(res, "trouble connecting to server", http.StatusInternalServerError)
+	}
+
+	response, err := json.Marshal(&job)
+	if err != nil {
+		http.Error(res, "trouble parsing data", http.StatusBadRequest)
+		return
+	}
+
+	res.Header().Set("content-type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	res.Write(response)
 }
 
 func (m *Repository) UpdateJob(res http.ResponseWriter, req *http.Request) {
@@ -179,7 +225,41 @@ func (m *Repository) UpdateJob(res http.ResponseWriter, req *http.Request) {
 }
 
 func (m *Repository) DeleteJob(res http.ResponseWriter, req *http.Request) {
-	io.WriteString(res, "Deleting job with ID...")
+	//read in the data sent by axios request
+	payload, err := io.ReadAll(req.Body)
+	if err != nil {
+		http.Error(res, "request has been denied", 404)
+	}
+
+	var job models.Job
+
+	//store data into the job variable of type Job
+	if err = json.Unmarshal(payload, &job); err != nil {
+		http.Error(res, "could not parse data", http.StatusBadRequest)
+		return
+	}
+
+	filter := bson.D{{Key: "uid", Value: job.UID}}
+	_, err = m.DB.Collection("Jobs").DeleteOne(context.TODO(), filter) //insert the job into the Jobs Collection
+	if err != nil {
+		http.Error(res, "The job was not deleted", http.StatusInternalServerError)
+		return
+	}
+
+	//extract weight of job and increment the capacity field of user by the weight value
+	weight := job.Weight
+	matchStage := bson.D{{Key: "$match", Value: bson.D{{Key: "uid", Value: job.UID}}}}
+	updateStage := bson.D{{Key: "$inc", Value: bson.D{{Key: "capacity", Value: -weight}}}}
+	//run pipeline
+	_, err = m.DB.Collection("User").Aggregate(context.TODO(), mongo.Pipeline{matchStage, updateStage})
+	if err != nil {
+		http.Error(res, "could not update the user capacity", http.StatusInternalServerError)
+		return
+	}
+
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	res.Write([]byte("The job was deleted and the user capacity has been updated!"))
 }
 
 func (m *Repository) UpdateJobStatus(res http.ResponseWriter, req *http.Request) {
@@ -261,3 +341,9 @@ func (m *Repository) CreateProductInfo(res http.ResponseWriter, req *http.Reques
 
 // The filter parameter must be a document and can be used to select which documents contribute to the count.
 // m.DB.Collection().CountDocuments(ctx context.Context, filter interface{}, opts ...*options.CountOptions)
+
+// docs := []interface{}{
+// 	bson.D{{Key: "cat_num", Value: "M349800"}, {Key: "cat_lot", Value: "210999"}, {Key: "raw_pn", Value: "15042"}, {Key: "raw_desc", Value: "prod1"}, {Key: "qty", Value: "100"}, {Key: "weight", Value: 0.5}, {Key: "status", Value: "wip"}, {Key: "uid", Value: "X202202"}},
+// 	bson.D{{Key: "cat_num", Value: "M349801"}, {Key: "cat_lot", Value: "210945"}, {Key: "raw_pn", Value: "15743"}, {Key: "raw_desc", Value: "prod2"}, {Key: "qty", Value: "500"}, {Key: "weight", Value: 0.75}, {Key: "status", Value: "wip"}, {Key: "uid", Value: "X202203"}},
+// 	bson.D{{Key: "cat_num", Value: "M350311"}, {Key: "cat_lot", Value: "211000"}, {Key: "raw_pn", Value: "16210"}, {Key: "raw_desc", Value: "prod3"}, {Key: "qty", Value: "25"}, {Key: "weight", Value: 1}, {Key: "status", Value: "wip"}, {Key: "uid", Value: "X202204"}},
+// }
