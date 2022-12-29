@@ -63,7 +63,11 @@ func (m *Repository) Login(res http.ResponseWriter, req *http.Request) {
 	//store the user info in the repository to be accessed at other routes
 	m.UserInfo = user
 
-	response, err := json.Marshal(&user)
+	response, err := json.Marshal(struct {
+		Firstname string
+		Lastname  string
+		Role      string
+	}{Firstname: user.Firstname, Lastname: user.Lastname, Role: user.Role})
 	if err != nil {
 		http.Error(res, "Unable to send user info", http.StatusInternalServerError)
 		return
@@ -239,7 +243,7 @@ func (m *Repository) DeleteJob(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	filter := bson.D{{Key: "uid", Value: job.UID}}
+	filter := bson.D{{Key: "id", Value: job.ID}}
 	_, err = m.DB.Collection("Jobs").DeleteOne(context.TODO(), filter) //insert the job into the Jobs Collection
 	if err != nil {
 		http.Error(res, "The job was not deleted", http.StatusInternalServerError)
