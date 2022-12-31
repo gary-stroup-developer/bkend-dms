@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -102,7 +103,7 @@ func (m *Repository) Dashboard(res http.ResponseWriter, req *http.Request) {
 }
 
 func (m *Repository) UserProfile(res http.ResponseWriter, req *http.Request) {
-	var id string
+	var id models.User
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
 		http.Error(res, "Trouble retrieving information", http.StatusBadRequest)
@@ -113,12 +114,12 @@ func (m *Repository) UserProfile(res http.ResponseWriter, req *http.Request) {
 		http.Error(res, "user profile unmarshal", http.StatusBadRequest)
 		return
 	}
-
+	log.Println(id)
 	var user []bson.M //will hold the user data retrieved from the database
-	filter := bson.D{{Key: "uid", Value: id}}
+	filter := bson.D{{Key: "uid", Value: id.UID}}
 	//search for user with the id passed to the payload
-	cursor := m.DB.Collection("User").FindOne(context.TODO(), filter).Decode(&user)
-	if cursor.Error() != "" {
+	err = m.DB.Collection("User").FindOne(context.TODO(), filter).Decode(&user)
+	if err != nil {
 		http.Error(res, "trouble connecting to server", http.StatusInternalServerError)
 		return
 	}

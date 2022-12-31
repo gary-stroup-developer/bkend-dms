@@ -9,7 +9,7 @@ import (
 func Routes(r *http.ServeMux) {
 	r.HandleFunc("/dms/login", handlers.Repo.Login)
 	r.HandleFunc("/dms/dashboard", handlers.Repo.Dashboard)
-	r.HandleFunc("/dms/userprofile/", handlers.Repo.UserProfile)
+	r.HandleFunc("/dms/userprofile/jobs", handlers.Repo.UserProfile)
 	r.HandleFunc("/dms/create/job", handlers.Repo.CreateJob)
 	r.HandleFunc("/dms/read-job/", handlers.Repo.ReadJob)
 	r.HandleFunc("/dms/update-job/", handlers.Repo.UpdateJob)
