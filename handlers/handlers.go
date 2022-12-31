@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/gary-stroup-developer/bkend-dms/models"
 	uuid "github.com/satori/go.uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	_ "go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -103,31 +103,39 @@ func (m *Repository) Dashboard(res http.ResponseWriter, req *http.Request) {
 }
 
 func (m *Repository) UserProfile(res http.ResponseWriter, req *http.Request) {
-	var id models.User
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	var user models.User
+
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
 		http.Error(res, "Trouble retrieving information", http.StatusBadRequest)
 		return
 	}
 
-	if err = json.Unmarshal(payload, &id); err != nil {
+	if err = json.Unmarshal(payload, &user); err != nil {
 		http.Error(res, "user profile unmarshal", http.StatusBadRequest)
 		return
 	}
-	log.Println(id)
-	var user []bson.M //will hold the user data retrieved from the database
-	filter := bson.D{{Key: "uid", Value: id.UID}}
+
+	var userMatch []bson.M //will hold the user data retrieved from the database
+	//filter := bson.D{{Key: "uid", Value: user.UID}}
 	//search for user with the id passed to the payload
-	err = m.DB.Collection("User").FindOne(context.TODO(), filter).Decode(&user)
+	cursor, err := m.DB.Collection("User").Find(ctx, bson.D{{Key: "uid", Value: user.UID}})
+
 	if err != nil {
+		res.Header().Set("content-type", "application.json")
 		http.Error(res, "trouble connecting to server", http.StatusInternalServerError)
 		return
 	}
 
+	cursor.All(ctx, &userMatch)
+
 	var jobs []bson.M //stores the results of query. Advantage is that this wont throw errors as may decoding into struct might
 
 	//create stages for job query
-	stageOne := bson.D{{Key: "$match", Value: bson.D{{Key: "uid", Value: id}}}}
+	stageOne := bson.D{{Key: "$match", Value: bson.D{{Key: "uid", Value: user.UID}}}}
 	stageTwo := bson.D{
 		{Key: "$group", Value: bson.D{
 			{Key: "_id", Value: "$status"},
@@ -147,7 +155,7 @@ func (m *Repository) UserProfile(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	var profile models.DashboardResponse
-	profile.Users = user
+	profile.Users = userMatch
 	profile.Jobs = jobs
 	response, _ := json.Marshal(&profile)
 

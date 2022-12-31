@@ -8,13 +8,13 @@ import (
 
 type User struct {
 	UID       string  `bson:"uid" json:"uid"`
-	Firstname string  `bson:"firstname" json:"firstname"`
-	Lastname  string  `bson:"lastname" json:"lastname"`
-	Password  string  `bson:"password" json:"password"`
-	Email     string  `bson:"email" json:"email"`
-	Status    bool    `bson:"status" json:"status"`
-	Role      string  `bson:"role" json:"role"`
-	Capacity  float64 `bson:"capacity" json:"capacity"`
+	Firstname string  `bson:"firstname" json:"firstname,omitempty"`
+	Lastname  string  `bson:"lastname" json:"lastname,omitempty"`
+	Password  string  `bson:"password" json:"password,omitempty"`
+	Email     string  `bson:"email" json:"email,omitempty"`
+	Status    bool    `bson:"status" json:"status,omitempty"`
+	Role      string  `bson:"role" json:"role,omitempty"`
+	Capacity  float64 `bson:"capacity" json:"capacity,omitempty"`
 }
 
 type Employee struct {
