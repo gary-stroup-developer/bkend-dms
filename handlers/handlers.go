@@ -119,10 +119,13 @@ func (m *Repository) UserProfile(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	matchStage := bson.D{{Key: "$match", Value: bson.D{{Key: "uid", Value: user.UID}, {Key: "role", Value: "user"}}}}
+	unsetStage := bson.D{{Key: "$unset", Value: bson.A{"password", "status"}}}
+
 	var userMatch []bson.M //will hold the user data retrieved from the database
 	//filter := bson.D{{Key: "uid", Value: user.UID}}
 	//search for user with the id passed to the payload
-	cursor, err := m.DB.Collection("User").Find(ctx, bson.D{{Key: "uid", Value: user.UID}})
+	cursor, err := m.DB.Collection("User").Aggregate(ctx, mongo.Pipeline{matchStage, unsetStage})
 
 	if err != nil {
 		res.Header().Set("content-type", "application.json")
