@@ -10,7 +10,6 @@ import (
 	"github.com/gary-stroup-developer/bkend-dms/models"
 	uuid "github.com/satori/go.uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	_ "go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -132,7 +131,7 @@ func (m *Repository) UserProfile(res http.ResponseWriter, req *http.Request) {
 		http.Error(res, "trouble connecting to server", http.StatusInternalServerError)
 		return
 	}
-
+	defer cursor.Close(context.TODO())
 	cursor.All(ctx, &userMatch)
 
 	var jobs []bson.M //stores the results of query. Advantage is that this wont throw errors as may decoding into struct might
@@ -168,23 +167,31 @@ func (m *Repository) UserProfile(res http.ResponseWriter, req *http.Request) {
 }
 
 func (m *Repository) CreateJob(res http.ResponseWriter, req *http.Request) {
+	//create a context that closes query if no connection made after 15 sec
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
 	//read in the data sent by axios request
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
 		http.Error(res, "request has been denied", 404)
 	}
 
+	//declare variables to hold job and user info
 	var job models.Job
+	var user models.User
+
+	//create a unique id for job
 	jobID := uuid.NewV4().String()
+
 	//store data into the job variable of type Job
 	if err = json.Unmarshal(payload, &job); err != nil {
 		http.Error(res, "could not parse data", http.StatusBadRequest)
 		return
 	}
-	job.ID = jobID
-	job.UID = m.UserInfo.UID
+	job.ID = jobID //set the job ID filed to the created jobID
 
-	_, err = m.DB.Collection("Jobs").InsertOne(context.TODO(), job) //insert the job into the Jobs Collection
+	_, err = m.DB.Collection("Jobs").InsertOne(ctx, job) //insert the job into the Jobs Collection
 	if err != nil {
 		http.Error(res, "The job was not saved! Please resubmit", http.StatusInternalServerError)
 		return
@@ -192,10 +199,29 @@ func (m *Repository) CreateJob(res http.ResponseWriter, req *http.Request) {
 
 	//extract weight of job and increment the capacity field of user by the weight value
 	weight := job.Weight
-	matchStage := bson.D{{Key: "$match", Value: bson.D{{Key: "uid", Value: job.UID}}}}
-	updateStage := bson.D{{Key: "$inc", Value: bson.D{{Key: "capacity", Value: weight}}}}
-	//run pipeline
-	_, err = m.DB.Collection("User").Aggregate(context.TODO(), mongo.Pipeline{matchStage, updateStage})
+
+	var userMatch []bson.M //will hold the user data retrieved from the database
+
+	//create stages of pipeline to get user info
+	matchStage := bson.D{{Key: "$match", Value: bson.D{{Key: "uid", Value: job.UID}, {Key: "role", Value: "user"}}}}
+	unsetStage := bson.D{{Key: "$unset", Value: bson.A{"password", "status", "role"}}}
+
+	//search for user with the id passed to the payload
+	cursor, err := m.DB.Collection("User").Aggregate(ctx, mongo.Pipeline{matchStage, unsetStage})
+	if err != nil {
+		res.Header().Set("content-type", "application.json")
+		http.Error(res, "trouble connecting to the database at the moment. Please try again", http.StatusInternalServerError)
+		return
+	}
+	defer cursor.Close(ctx)
+	cursor.All(ctx, &userMatch) //store bson decoded data into userMatch.
+
+	for _, result := range userMatch {
+		data, _ := json.Marshal(result) //need to encode the data as JSON
+		json.Unmarshal(data, &user)     //parse the data into user in order to access users capacity field and modify
+	}
+
+	_, err = m.DB.Collection("User").UpdateOne(ctx, bson.D{{Key: "uid", Value: job.UID}, {Key: "firstname", Value: user.Firstname}, {Key: "lastname", Value: user.Lastname}}, bson.D{{Key: "$inc", Value: bson.D{{Key: "capacity", Value: weight}}}})
 	if err != nil {
 		http.Error(res, "could not update the user capacity", http.StatusInternalServerError)
 		return
@@ -203,7 +229,7 @@ func (m *Repository) CreateJob(res http.ResponseWriter, req *http.Request) {
 
 	res.Header().Set("Content-Type", "application/json")
 	res.WriteHeader(http.StatusOK)
-	res.Write([]byte("The job was successfully created. User capacity has been updated"))
+	res.Write([]byte("The user capacity was successfully updated"))
 }
 
 func (m *Repository) ReadJob(res http.ResponseWriter, req *http.Request) {
