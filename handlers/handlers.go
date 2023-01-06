@@ -198,7 +198,6 @@ func (m *Repository) CreateJob(res http.ResponseWriter, req *http.Request) {
 	}
 
 	//extract weight of job and increment the capacity field of user by the weight value
-	weight := job.Weight
 
 	var userMatch []bson.M //will hold the user data retrieved from the database
 
@@ -220,12 +219,12 @@ func (m *Repository) CreateJob(res http.ResponseWriter, req *http.Request) {
 		data, _ := json.Marshal(result) //need to encode the data as JSON
 		json.Unmarshal(data, &user)     //parse the data into user in order to access users capacity field and modify
 	}
-
-	_, err = m.DB.Collection("User").UpdateOne(ctx, bson.D{{Key: "uid", Value: job.UID}, {Key: "firstname", Value: user.Firstname}, {Key: "lastname", Value: user.Lastname}}, bson.D{{Key: "$inc", Value: bson.D{{Key: "capacity", Value: weight}}}})
-	if err != nil {
-		http.Error(res, "could not update the user capacity", http.StatusInternalServerError)
-		return
-	}
+	//weight := job.Weight
+	// _, err = m.DB.Collection("User").UpdateOne(ctx, bson.D{{Key: "uid", Value: job.UID}, {Key: "firstname", Value: user.Firstname}, {Key: "lastname", Value: user.Lastname}}, bson.D{{Key: "$inc", Value: bson.D{{Key: "capacity", Value: weight}}}})
+	// if err != nil {
+	// 	http.Error(res, "could not update the user capacity", http.StatusInternalServerError)
+	// 	return
+	// }
 
 	res.Header().Set("Content-Type", "application/json")
 	res.WriteHeader(http.StatusOK)
@@ -263,7 +262,9 @@ func (m *Repository) ReadJob(res http.ResponseWriter, req *http.Request) {
 }
 
 func (m *Repository) UpdateJob(res http.ResponseWriter, req *http.Request) {
-	io.WriteString(res, "Updating job with ID...")
+	res.WriteHeader(http.StatusOK)
+	res.Header().Set("content-type", "application/json")
+	res.Write([]byte("User capcity has been updated!"))
 }
 
 func (m *Repository) DeleteJob(res http.ResponseWriter, req *http.Request) {
@@ -305,7 +306,86 @@ func (m *Repository) DeleteJob(res http.ResponseWriter, req *http.Request) {
 }
 
 func (m *Repository) UpdateJobStatus(res http.ResponseWriter, req *http.Request) {
-	io.WriteString(res, "Job was drag and dropped into new bucket. Updating the status")
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	response, err := io.ReadAll(req.Body)
+	if err != nil {
+		http.Error(res, "User data was not successfully updated", http.StatusBadRequest)
+		return
+	}
+
+	data := struct {
+		Job      models.Job `json:"job"`
+		Capacity bool       `json:"capacity"`
+	}{}
+
+	if err = json.Unmarshal(response, &data); err != nil {
+		http.Error(res, "Trouble reading data sent by user", http.StatusInternalServerError)
+		return
+	}
+
+	//set the filters for finding job in order to update status
+	filter := bson.D{{Key: "uid", Value: data.Job.UID}, {Key: "id", Value: data.Job.ID}}
+	updateStage := bson.D{{Key: "$set", Value: bson.D{{Key: "status", Value: data.Job.Status}}}}
+
+	result, err := m.DB.Collection("Jobs").UpdateOne(ctx, filter, updateStage)
+	if err != nil {
+		http.Error(res, "not updating correctly", 500)
+		return
+	}
+	if result.MatchedCount == 0 {
+		http.Error(res, "unable to match and replace an existing document", http.StatusInternalServerError)
+		return
+	}
+
+	var user []models.User
+
+	//if true, need to update user capacity as well
+	if data.Capacity {
+		cursor, err := m.DB.Collection("User").Find(ctx, bson.D{{Key: "uid", Value: data.Job.UID}, {Key: "status", Value: true}, {Key: "role", Value: "user"}})
+		if err != nil {
+			http.Error(res, "trouble connecting to server", http.StatusInternalServerError)
+			return
+		}
+		defer cursor.Close(ctx)
+		cursor.All(ctx, &user)
+
+		if data.Job.Status == "queue" || data.Job.Status == "staged" {
+			newCapacity := user[0].Capacity - data.Job.Weight
+			f := bson.D{{Key: "uid", Value: data.Job.UID}, {Key: "status", Value: true}, {Key: "role", Value: "user"}}
+
+			result, err := m.DB.Collection("User").UpdateOne(ctx, f, bson.D{{Key: "$set", Value: bson.D{{Key: "capacity", Value: newCapacity}}}})
+			if err != nil {
+				http.Error(res, "not updating correctly", 500)
+				return
+			}
+			if result.MatchedCount == 0 {
+				http.Error(res, "unable to match and replace an existing document", http.StatusInternalServerError)
+				return
+			}
+
+		} else {
+			newCapacity := user[0].Capacity + data.Job.Weight
+			f := bson.D{{Key: "uid", Value: data.Job.UID}, {Key: "status", Value: true}, {Key: "role", Value: "user"}}
+
+			result, err := m.DB.Collection("User").UpdateOne(ctx, f, bson.D{{Key: "$set", Value: bson.D{{Key: "capacity", Value: newCapacity}}}})
+			if err != nil {
+				http.Error(res, "not updating correctly", 500)
+				return
+			}
+			if result.MatchedCount == 0 {
+				http.Error(res, "unable to match and replace an existing document", http.StatusInternalServerError)
+				return
+			}
+		}
+
+	}
+
+	res.WriteHeader(http.StatusOK)
+	res.Header().Set("content-type", "application/json")
+	res.Write([]byte("User capacity was successfully updated"))
+
 }
 
 //*****************************Admin operations**************************************************

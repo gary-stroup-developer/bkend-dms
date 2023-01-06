@@ -47,19 +47,20 @@ type Location struct {
 }
 
 type CBR struct {
-	Source         string
-	Orig_Viability string
-	Orig_Count     string
-	Num_Vials      string
-	PN             string
-	LN             string
-	Description    string
-	Density        string
-	Vial_Init      string
-	Location       []Location
+	Source         string     `json:"cbr_source,omitempty"`
+	Orig_Viability string     `json:"orig_viability,omitempty"`
+	Orig_Count     string     `json:"orig_count,omitempty"`
+	Num_Vials      string     `json:"num_vials,omitempty"`
+	PN             string     `json:"cbr_pn,omitempty"`
+	LN             string     `json:"cbr_ln,omitempty"`
+	Description    string     `json:"cbr_desc,omitempty"`
+	Density        string     `json:"density,omitempty"`
+	Vial_Init      string     `json:"vial_init,omitempty"`
+	Location       []Location `json:"location,omitempty"`
 }
 
 type Job struct {
+	OID        string    `bson:"_id,omitempty" json:"_id"`
 	ID         string    `bson:"id,omitempty" json:"id"`
 	Cat_Num    string    `bson:"cat_num,omitempty" json:"cat_num,omitempty"`
 	Cat_Desc   string    `bson:"cat_desc,omitempty" json:"cat_desc,omitempty"`
