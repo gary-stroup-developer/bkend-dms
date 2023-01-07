@@ -29,6 +29,7 @@ func NewRepo(r *Repository) {
 	Repo = r
 }
 
+//tested and complete
 func (m *Repository) Login(res http.ResponseWriter, req *http.Request) {
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -78,6 +79,7 @@ func (m *Repository) Login(res http.ResponseWriter, req *http.Request) {
 	res.Write(response)
 }
 
+//tested and complete
 func (m *Repository) Dashboard(res http.ResponseWriter, req *http.Request) {
 	// create the stages to get users who are active, then return everything except the password & status
 	matchStage := bson.D{{Key: "$match", Value: bson.D{{Key: "status", Value: true}, {Key: "role", Value: "user"}}}}
@@ -101,6 +103,7 @@ func (m *Repository) Dashboard(res http.ResponseWriter, req *http.Request) {
 	res.Write(payload)
 }
 
+//tested and complete
 func (m *Repository) UserProfile(res http.ResponseWriter, req *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -166,6 +169,7 @@ func (m *Repository) UserProfile(res http.ResponseWriter, req *http.Request) {
 	res.Write(response)
 }
 
+//tested and works...need to decide if i send user uid over request or populate here
 func (m *Repository) CreateJob(res http.ResponseWriter, req *http.Request) {
 	//create a context that closes query if no connection made after 15 sec
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -179,7 +183,6 @@ func (m *Repository) CreateJob(res http.ResponseWriter, req *http.Request) {
 
 	//declare variables to hold job and user info
 	var job models.Job
-	var user models.User
 
 	//create a unique id for job
 	jobID := uuid.NewV4().String()
@@ -197,28 +200,27 @@ func (m *Repository) CreateJob(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	//extract weight of job and increment the capacity field of user by the weight value
+	// var user models.User
+	// var userMatch []bson.M //will hold the user data retrieved from the database
 
-	var userMatch []bson.M //will hold the user data retrieved from the database
+	// //create stages of pipeline to get user info
+	// matchStage := bson.D{{Key: "$match", Value: bson.D{{Key: "uid", Value: job.UID}, {Key: "role", Value: "user"}}}}
+	// unsetStage := bson.D{{Key: "$unset", Value: bson.A{"password", "status", "role"}}}
 
-	//create stages of pipeline to get user info
-	matchStage := bson.D{{Key: "$match", Value: bson.D{{Key: "uid", Value: job.UID}, {Key: "role", Value: "user"}}}}
-	unsetStage := bson.D{{Key: "$unset", Value: bson.A{"password", "status", "role"}}}
+	// //search for user with the id passed to the payload
+	// cursor, err := m.DB.Collection("User").Aggregate(ctx, mongo.Pipeline{matchStage, unsetStage})
+	// if err != nil {
+	// 	res.Header().Set("content-type", "application.json")
+	// 	http.Error(res, "trouble connecting to the database at the moment. Please try again", http.StatusInternalServerError)
+	// 	return
+	// }
+	// defer cursor.Close(ctx)
+	// cursor.All(ctx, &userMatch) //store bson decoded data into userMatch.
 
-	//search for user with the id passed to the payload
-	cursor, err := m.DB.Collection("User").Aggregate(ctx, mongo.Pipeline{matchStage, unsetStage})
-	if err != nil {
-		res.Header().Set("content-type", "application.json")
-		http.Error(res, "trouble connecting to the database at the moment. Please try again", http.StatusInternalServerError)
-		return
-	}
-	defer cursor.Close(ctx)
-	cursor.All(ctx, &userMatch) //store bson decoded data into userMatch.
-
-	for _, result := range userMatch {
-		data, _ := json.Marshal(result) //need to encode the data as JSON
-		json.Unmarshal(data, &user)     //parse the data into user in order to access users capacity field and modify
-	}
+	// for _, result := range userMatch {
+	// 	data, _ := json.Marshal(result) //need to encode the data as JSON
+	// 	json.Unmarshal(data, &user)     //parse the data into user in order to access users capacity field and modify
+	// }
 	//weight := job.Weight
 	// _, err = m.DB.Collection("User").UpdateOne(ctx, bson.D{{Key: "uid", Value: job.UID}, {Key: "firstname", Value: user.Firstname}, {Key: "lastname", Value: user.Lastname}}, bson.D{{Key: "$inc", Value: bson.D{{Key: "capacity", Value: weight}}}})
 	// if err != nil {
@@ -305,6 +307,7 @@ func (m *Repository) DeleteJob(res http.ResponseWriter, req *http.Request) {
 	res.Write([]byte("The job was deleted and the user capacity has been updated!"))
 }
 
+//tested and complete
 func (m *Repository) UpdateJobStatus(res http.ResponseWriter, req *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
