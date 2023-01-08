@@ -11,7 +11,7 @@ func Routes(r *http.ServeMux) {
 	r.HandleFunc("/dms/dashboard", handlers.Repo.Dashboard)
 	r.HandleFunc("/dms/userprofile/jobs", handlers.Repo.UserProfile)
 	r.HandleFunc("/dms/job/create", handlers.Repo.CreateJob)
-	r.HandleFunc("/dms/job/read", handlers.Repo.ReadJob)
+	r.HandleFunc("/dms/job/create/search", handlers.Repo.SearchJob)
 	r.HandleFunc("/dms/job/update", handlers.Repo.UpdateJob)
 	r.HandleFunc("/dms/job/delete", handlers.Repo.DeleteJob)
 	r.HandleFunc("/dms/update/job-status", handlers.Repo.UpdateJobStatus)

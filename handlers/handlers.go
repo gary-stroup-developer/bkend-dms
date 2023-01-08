@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -169,7 +170,7 @@ func (m *Repository) UserProfile(res http.ResponseWriter, req *http.Request) {
 	res.Write(response)
 }
 
-//tested and works...need to decide if i send user uid over request or populate here
+//tested and works
 func (m *Repository) CreateJob(res http.ResponseWriter, req *http.Request) {
 	//create a context that closes query if no connection made after 15 sec
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -233,26 +234,33 @@ func (m *Repository) CreateJob(res http.ResponseWriter, req *http.Request) {
 	res.Write([]byte("The user capacity was successfully updated"))
 }
 
-func (m *Repository) ReadJob(res http.ResponseWriter, req *http.Request) {
+//tested and works
+func (m *Repository) SearchJob(res http.ResponseWriter, req *http.Request) {
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
 		http.Error(res, "trouble parsing data", http.StatusBadRequest)
 		return
 	}
 
-	var id string
-	json.Unmarshal(payload, &id)
-	//create stages for job query
-	filter := bson.D{{Key: "uid", Value: m.UserInfo.UID}, {Key: "id", Value: id}}
-
-	var job []bson.M
-	//use aggregate func to query results using pipeline
-	c := m.DB.Collection("Jobs").FindOne(context.TODO(), filter).Decode(&job)
-	if c.Error() != "" {
-		http.Error(res, "trouble connecting to server", http.StatusInternalServerError)
+	type jobPN struct {
+		SearchPN string `bson:"cat_num" json:"cat_num"`
 	}
 
-	response, err := json.Marshal(&job)
+	var pn jobPN
+	json.Unmarshal(payload, &pn)
+
+	//create stages for job query
+	filter := bson.D{{Key: "cat_num", Value: pn.SearchPN}}
+
+	var product bson.M
+
+	err = m.DB.Collection("Product").FindOne(context.TODO(), filter).Decode(&product)
+	if err != nil {
+		http.Error(res, "trouble connecting to server", http.StatusInternalServerError)
+		return
+	}
+
+	response, err := json.Marshal(&product)
 	if err != nil {
 		http.Error(res, "trouble parsing data", http.StatusBadRequest)
 		return
@@ -435,8 +443,33 @@ func (m *Repository) SetToInactive(res http.ResponseWriter, req *http.Request) {
 	io.WriteString(res, "Admin is changing user status to inactive")
 }
 
+//tested and works
 func (m *Repository) CreateProductInfo(res http.ResponseWriter, req *http.Request) {
-	io.WriteString(res, "Admin is adding new product info to system")
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	request, err := io.ReadAll(req.Body)
+	if err != nil {
+		http.Error(res, "Trouble reading data. Please try resubmitting data", http.StatusBadRequest)
+		return
+	}
+
+	var data models.Product
+	if err := json.Unmarshal(request, &data); err != nil {
+		http.Error(res, "Data could not be decoded", http.StatusInternalServerError)
+		return
+	}
+
+	result, err := m.DB.Collection("Product").InsertOne(ctx, &data)
+	if err != nil {
+		http.Error(res, "Data was not inserted into the database!", http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Println(result.InsertedID)
+	res.Header().Set("content-type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	res.Write([]byte("The product information was successfully stored in the database!"))
 }
 
 //needed only to generate an employee in the database. won't exist in production
