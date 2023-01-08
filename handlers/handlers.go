@@ -161,8 +161,10 @@ func (m *Repository) UserProfile(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	var profile models.DashboardResponse
+
 	profile.Users = userMatch
 	profile.Jobs = jobs
+
 	response, _ := json.Marshal(&profile)
 
 	res.Header().Set("content-type", "application/json")
@@ -200,34 +202,6 @@ func (m *Repository) CreateJob(res http.ResponseWriter, req *http.Request) {
 		http.Error(res, "The job was not saved! Please resubmit", http.StatusInternalServerError)
 		return
 	}
-
-	// var user models.User
-	// var userMatch []bson.M //will hold the user data retrieved from the database
-
-	// //create stages of pipeline to get user info
-	// matchStage := bson.D{{Key: "$match", Value: bson.D{{Key: "uid", Value: job.UID}, {Key: "role", Value: "user"}}}}
-	// unsetStage := bson.D{{Key: "$unset", Value: bson.A{"password", "status", "role"}}}
-
-	// //search for user with the id passed to the payload
-	// cursor, err := m.DB.Collection("User").Aggregate(ctx, mongo.Pipeline{matchStage, unsetStage})
-	// if err != nil {
-	// 	res.Header().Set("content-type", "application.json")
-	// 	http.Error(res, "trouble connecting to the database at the moment. Please try again", http.StatusInternalServerError)
-	// 	return
-	// }
-	// defer cursor.Close(ctx)
-	// cursor.All(ctx, &userMatch) //store bson decoded data into userMatch.
-
-	// for _, result := range userMatch {
-	// 	data, _ := json.Marshal(result) //need to encode the data as JSON
-	// 	json.Unmarshal(data, &user)     //parse the data into user in order to access users capacity field and modify
-	// }
-	//weight := job.Weight
-	// _, err = m.DB.Collection("User").UpdateOne(ctx, bson.D{{Key: "uid", Value: job.UID}, {Key: "firstname", Value: user.Firstname}, {Key: "lastname", Value: user.Lastname}}, bson.D{{Key: "$inc", Value: bson.D{{Key: "capacity", Value: weight}}}})
-	// if err != nil {
-	// 	http.Error(res, "could not update the user capacity", http.StatusInternalServerError)
-	// 	return
-	// }
 
 	res.Header().Set("Content-Type", "application/json")
 	res.WriteHeader(http.StatusOK)
@@ -272,12 +246,6 @@ func (m *Repository) SearchJob(res http.ResponseWriter, req *http.Request) {
 }
 
 func (m *Repository) UpdateJob(res http.ResponseWriter, req *http.Request) {
-	res.WriteHeader(http.StatusOK)
-	res.Header().Set("content-type", "application/json")
-	res.Write([]byte("User capcity has been updated!"))
-}
-
-func (m *Repository) DeleteJob(res http.ResponseWriter, req *http.Request) {
 	//read in the data sent by axios request
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -292,22 +260,69 @@ func (m *Repository) DeleteJob(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	filter := bson.D{{Key: "id", Value: job.ID}}
+	filter := bson.D{{Key: "_id", Value: job.OID}, {Key: "id", Value: job.ID}}
+
+	var ReplacedDoc bson.M
+	err = m.DB.Collection("Jobs").FindOneAndReplace(context.TODO(), filter, &job).Decode(&ReplacedDoc)
+	if err != nil {
+		http.Error(res, "The job was not deleted", http.StatusInternalServerError)
+		return
+	}
+
+	res.Header().Set("content-type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	res.Write([]byte("Job information has been updated!"))
+}
+
+//looks complete. Need to test
+func (m *Repository) DeleteJob(res http.ResponseWriter, req *http.Request) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	//read in the data sent by axios request
+	payload, err := io.ReadAll(req.Body)
+	if err != nil {
+		http.Error(res, "request has been denied", 404)
+	}
+
+	var job models.Job
+	var user models.User
+
+	//store data into the job variable of type Job
+	if err = json.Unmarshal(payload, &job); err != nil {
+		http.Error(res, "could not parse data", http.StatusBadRequest)
+		return
+	}
+
+	filter := bson.D{{Key: "_id", Value: job.OID}, {Key: "id", Value: job.ID}}
 	_, err = m.DB.Collection("Jobs").DeleteOne(context.TODO(), filter) //insert the job into the Jobs Collection
 	if err != nil {
 		http.Error(res, "The job was not deleted", http.StatusInternalServerError)
 		return
 	}
 
-	//extract weight of job and increment the capacity field of user by the weight value
-	weight := job.Weight
-	matchStage := bson.D{{Key: "$match", Value: bson.D{{Key: "uid", Value: job.UID}}}}
-	updateStage := bson.D{{Key: "$inc", Value: bson.D{{Key: "capacity", Value: -weight}}}}
-	//run pipeline
-	_, err = m.DB.Collection("User").Aggregate(context.TODO(), mongo.Pipeline{matchStage, updateStage})
+	//User info updated
+	err = m.DB.Collection("User").FindOne(ctx, bson.D{{Key: "uid", Value: job.UID}, {Key: "status", Value: true}, {Key: "role", Value: "user"}}).Decode(&user)
 	if err != nil {
-		http.Error(res, "could not update the user capacity", http.StatusInternalServerError)
+		http.Error(res, "trouble connecting to server", http.StatusInternalServerError)
 		return
+	}
+
+	//extract weight of job and increment the capacity field of user by the weight value
+	if job.Status == "wip" {
+		newCapacity := user.Capacity - job.Weight
+
+		f := bson.D{{Key: "uid", Value: user.UID}, {Key: "status", Value: true}, {Key: "role", Value: "user"}}
+		update := bson.D{{Key: "$set", Value: bson.D{{Key: "capacity", Value: newCapacity}}}}
+
+		result, err := m.DB.Collection("User").UpdateOne(ctx, f, update)
+		if err != nil {
+			http.Error(res, "not updating correctly", 500)
+			return
+		}
+		if result.MatchedCount == 0 {
+			http.Error(res, "unable to match and replace an existing document", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	res.Header().Set("Content-Type", "application/json")
@@ -504,4 +519,32 @@ func (m *Repository) CreateProductInfo(res http.ResponseWriter, req *http.Reques
 // 	bson.D{{Key: "cat_num", Value: "M349800"}, {Key: "cat_lot", Value: "210999"}, {Key: "raw_pn", Value: "15042"}, {Key: "raw_desc", Value: "prod1"}, {Key: "qty", Value: "100"}, {Key: "weight", Value: 0.5}, {Key: "status", Value: "wip"}, {Key: "uid", Value: "X202202"}},
 // 	bson.D{{Key: "cat_num", Value: "M349801"}, {Key: "cat_lot", Value: "210945"}, {Key: "raw_pn", Value: "15743"}, {Key: "raw_desc", Value: "prod2"}, {Key: "qty", Value: "500"}, {Key: "weight", Value: 0.75}, {Key: "status", Value: "wip"}, {Key: "uid", Value: "X202203"}},
 // 	bson.D{{Key: "cat_num", Value: "M350311"}, {Key: "cat_lot", Value: "211000"}, {Key: "raw_pn", Value: "16210"}, {Key: "raw_desc", Value: "prod3"}, {Key: "qty", Value: "25"}, {Key: "weight", Value: 1}, {Key: "status", Value: "wip"}, {Key: "uid", Value: "X202204"}},
+// }
+
+// var user models.User
+// var userMatch []bson.M //will hold the user data retrieved from the database
+
+// //create stages of pipeline to get user info
+// matchStage := bson.D{{Key: "$match", Value: bson.D{{Key: "uid", Value: job.UID}, {Key: "role", Value: "user"}}}}
+// unsetStage := bson.D{{Key: "$unset", Value: bson.A{"password", "status", "role"}}}
+
+// //search for user with the id passed to the payload
+// cursor, err := m.DB.Collection("User").Aggregate(ctx, mongo.Pipeline{matchStage, unsetStage})
+// if err != nil {
+// 	res.Header().Set("content-type", "application.json")
+// 	http.Error(res, "trouble connecting to the database at the moment. Please try again", http.StatusInternalServerError)
+// 	return
+// }
+// defer cursor.Close(ctx)
+// cursor.All(ctx, &userMatch) //store bson decoded data into userMatch.
+
+// for _, result := range userMatch {
+// 	data, _ := json.Marshal(result) //need to encode the data as JSON
+// 	json.Unmarshal(data, &user)     //parse the data into user in order to access users capacity field and modify
+// }
+//weight := job.Weight
+// _, err = m.DB.Collection("User").UpdateOne(ctx, bson.D{{Key: "uid", Value: job.UID}, {Key: "firstname", Value: user.Firstname}, {Key: "lastname", Value: user.Lastname}}, bson.D{{Key: "$inc", Value: bson.D{{Key: "capacity", Value: weight}}}})
+// if err != nil {
+// 	http.Error(res, "could not update the user capacity", http.StatusInternalServerError)
+// 	return
 // }
