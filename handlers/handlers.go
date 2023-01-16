@@ -30,7 +30,7 @@ func NewRepo(r *Repository) {
 	Repo = r
 }
 
-//tested and complete
+// tested and complete
 func (m *Repository) Login(res http.ResponseWriter, req *http.Request) {
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -80,7 +80,7 @@ func (m *Repository) Login(res http.ResponseWriter, req *http.Request) {
 	res.Write(response)
 }
 
-//tested and complete
+// tested and complete
 func (m *Repository) Dashboard(res http.ResponseWriter, req *http.Request) {
 	// create the stages to get users who are active, then return everything except the password & status
 	matchStage := bson.D{{Key: "$match", Value: bson.D{{Key: "status", Value: true}, {Key: "role", Value: "user"}}}}
@@ -104,7 +104,7 @@ func (m *Repository) Dashboard(res http.ResponseWriter, req *http.Request) {
 	res.Write(payload)
 }
 
-//tested and complete
+// tested and complete
 func (m *Repository) UserProfile(res http.ResponseWriter, req *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -172,7 +172,7 @@ func (m *Repository) UserProfile(res http.ResponseWriter, req *http.Request) {
 	res.Write(response)
 }
 
-//tested and works
+// tested and works
 func (m *Repository) CreateJob(res http.ResponseWriter, req *http.Request) {
 	//create a context that closes query if no connection made after 15 sec
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -208,7 +208,7 @@ func (m *Repository) CreateJob(res http.ResponseWriter, req *http.Request) {
 	res.Write([]byte("The user capacity was successfully updated"))
 }
 
-//tested and works
+// tested and works
 func (m *Repository) SearchJob(res http.ResponseWriter, req *http.Request) {
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -274,7 +274,7 @@ func (m *Repository) UpdateJob(res http.ResponseWriter, req *http.Request) {
 	res.Write([]byte("Job information has been updated!"))
 }
 
-//looks complete. Need to test
+// looks complete. Need to test
 func (m *Repository) DeleteJob(res http.ResponseWriter, req *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -330,7 +330,7 @@ func (m *Repository) DeleteJob(res http.ResponseWriter, req *http.Request) {
 	res.Write([]byte("The job was deleted and the user capacity has been updated!"))
 }
 
-//tested and complete
+// tested and complete
 func (m *Repository) UpdateJobStatus(res http.ResponseWriter, req *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -439,7 +439,6 @@ func (m *Repository) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 	//when i create the frontend page for this route, will send role along with UID.
 	user.Status = true
-	user.Role = "user"
 
 	//since user is an Employee, the credentials get stored in the User Collection
 	_, err = m.DB.Collection("User").InsertOne(ctx, &user)
@@ -448,7 +447,7 @@ func (m *Repository) CreateUser(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	//need to send the user's role to front in order to direct the routing
-	response, _ := json.Marshal(&user.Role)
+	response, _ := json.Marshal(fmt.Sprintf("The user: %s %s has been added to the list of DMS users. Their role was set to %s", user.Firstname, user.Lastname, user.Role))
 	res.Header().Set("Content-Type", "application/json")
 	res.WriteHeader(http.StatusOK)
 	res.Write(response)
@@ -458,7 +457,7 @@ func (m *Repository) SetToInactive(res http.ResponseWriter, req *http.Request) {
 	io.WriteString(res, "Admin is changing user status to inactive")
 }
 
-//tested and works
+// tested and works
 func (m *Repository) CreateProductInfo(res http.ResponseWriter, req *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()

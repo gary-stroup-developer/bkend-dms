@@ -44,17 +44,25 @@ type Location struct {
 	Media       string
 }
 
+type FSR struct {
+	Num_Vials   string `json:"num_vials,omitempty"`
+	Location    string `json:"location,omitempty"`
+	Description string `json:"raw_desc,omitempty"`
+	Due_Date    string `bson:"due_date,omitempty" json:"due_date,omitempty"`
+}
+
 type CBR struct {
-	Source         string     `json:"cbr_source,omitempty"`
-	Orig_Viability string     `json:"orig_viability,omitempty"`
-	Orig_Count     string     `json:"orig_count,omitempty"`
-	Num_Vials      string     `json:"num_vials,omitempty"`
-	PN             string     `json:"cbr_pn,omitempty"`
-	LN             string     `json:"cbr_ln,omitempty"`
-	Description    string     `json:"cbr_desc,omitempty"`
-	Density        string     `json:"density,omitempty"`
-	Vial_Init      string     `json:"vial_init,omitempty"`
-	Location       []Location `json:"location,omitempty"`
+	Source         string `json:"cbr_source,omitempty"`
+	Orig_Viability string `json:"orig_viability,omitempty"`
+	Orig_Count     string `json:"orig_count,omitempty"`
+	Media          string `json:"media,omitempty"`
+	Num_Vials      string `json:"num_vials,omitempty"`
+	PN             string `json:"cbr_pn,omitempty"`
+	LN             string `json:"cbr_ln,omitempty"`
+	Description    string `json:"cbr_desc,omitempty"`
+	Density        string `json:"density,omitempty"`
+	Vial_Init      string `json:"vial_init,omitempty"`
+	Location       string `bson:"location,omitempty"`
 }
 
 type Job struct {
