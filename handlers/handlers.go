@@ -414,6 +414,24 @@ func (m *Repository) UpdateJobStatus(res http.ResponseWriter, req *http.Request)
 
 }
 
+// handles the FSR info for job
+func (m *Repository) FSRHandler(res http.ResponseWriter, req *http.Request) {
+	//Create CTX
+
+	//Read the Request Body
+
+	//http.MethodPut? == update the info
+
+	//Handle if no jobID available = coming from outside department
+	//create jobID
+	//set status to queue
+	//store in database
+	//vid will be assigned on frontend
+
+	//Otherwise, create pipeline that matches JobID from Jobs Collection & sets FSR to the data submitted
+
+}
+
 //*****************************Admin operations**************************************************
 
 func (m *Repository) CreateUser(res http.ResponseWriter, req *http.Request) {

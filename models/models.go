@@ -45,10 +45,15 @@ type Location struct {
 }
 
 type FSR struct {
-	Num_Vials   string `json:"num_vials,omitempty"`
-	Location    string `json:"location,omitempty"`
-	Description string `json:"raw_desc,omitempty"`
-	Due_Date    string `bson:"due_date,omitempty" json:"due_date,omitempty"`
+	Num_Vials   string  `json:"num_vials,omitempty"`
+	Location    string  `json:"location,omitempty"`
+	Description string  `json:"raw_desc,omitempty"`
+	Due_Date    string  `bson:"due_date,omitempty" json:"due_date,omitempty"`
+	JobID       string  `bson:"jobid,omitempty" json:"jobid"`
+	UID         string  `bson:"uid" json:"uid"`
+	VID         string  `bson:"vid" json:"vid"`
+	Weight      float64 `bson:"weight,omitempty" json:"weight,omitempty"`
+	Status      string  `bson:"status,omitempty" json:"status,omitempty"`
 }
 
 type CBR struct {
@@ -80,7 +85,7 @@ type Job struct {
 	Weight     float64            `bson:"weight,omitempty" json:"weight,omitempty"`
 	Status     string             `bson:"status,omitempty" json:"status,omitempty"`
 	UID        string             `bson:"uid,omitempty" json:"uid,omitempty"`
-	FSR        string             `bson:"fsr,omitempty" json:"fsr,omitempty"`
+	FSR        FSR                `bson:"fsr,omitempty" json:"fsr,omitempty"`
 	CBR        CBR                `bson:"cbr,omitempty" json:"cbr,omitempty"`
 }
 
