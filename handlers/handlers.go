@@ -421,27 +421,39 @@ func (m *Repository) FSRHandler(res http.ResponseWriter, req *http.Request) {
 	defer cancel()
 
 	var fsr models.FSR
+	var job models.Job
 
 	//Read the Request Body
 	resp, err := io.ReadAll(req.Body)
-
 	if err != nil {
 		http.Error(res, "Issue receving the data", http.StatusBadRequest)
 		return
 	}
+
 	if err = json.Unmarshal(resp, &fsr); err != nil {
 		http.Error(res, "Data not able to be read", http.StatusBadRequest)
 		return
 	}
-
 	filter := bson.D{{Key: "id", Value: fsr.JobID}, {Key: "uid", Value: fsr.UID}}
-	setStage := bson.D{{Key: "$set", Value: bson.D{{Key: "fsr", Value: fsr}}}}
 
-	m.DB.Collection("Jobs").FindOneAndUpdate(ctx, filter, setStage)
+	if req.Method == http.MethodPut {
+
+		setStage := bson.D{{Key: "$set", Value: bson.D{{Key: "fsr", Value: fsr}}}}
+
+		m.DB.Collection("Jobs").FindOneAndUpdate(ctx, filter, setStage)
+
+		res.Header().Set("content-type", "application/json")
+		res.WriteHeader(http.StatusOK)
+		res.Write([]byte("Job FSR info was updated!!"))
+
+		return
+	}
+
+	m.DB.Collection("Jobs").FindOne(ctx, filter).Decode(&job)
 
 	res.Header().Set("content-type", "application/json")
 	res.WriteHeader(http.StatusOK)
-	res.Write([]byte("Job FSR info was updated!!"))
+	res.Write([]byte(job.FSR.Location))
 
 }
 
