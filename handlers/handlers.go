@@ -417,18 +417,62 @@ func (m *Repository) UpdateJobStatus(res http.ResponseWriter, req *http.Request)
 // handles the FSR info for job
 func (m *Repository) FSRHandler(res http.ResponseWriter, req *http.Request) {
 	//Create CTX
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	var fsr models.FSR
 
 	//Read the Request Body
+	resp, err := io.ReadAll(req.Body)
 
-	//http.MethodPut? == update the info
+	if err != nil {
+		http.Error(res, "Issue receving the data", http.StatusBadRequest)
+		return
+	}
+	if err = json.Unmarshal(resp, &fsr); err != nil {
+		http.Error(res, "Data not able to be read", http.StatusBadRequest)
+		return
+	}
 
-	//Handle if no jobID available = coming from outside department
-	//create jobID
-	//set status to queue
-	//store in database
-	//vid will be assigned on frontend
+	filter := bson.D{{Key: "id", Value: fsr.JobID}, {Key: "uid", Value: fsr.UID}}
+	setStage := bson.D{{Key: "$set", Value: bson.D{{Key: "fsr", Value: fsr}}}}
 
-	//Otherwise, create pipeline that matches JobID from Jobs Collection & sets FSR to the data submitted
+	m.DB.Collection("Jobs").FindOneAndUpdate(ctx, filter, setStage)
+
+	res.Header().Set("content-type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	res.Write([]byte("Job FSR info was updated!!"))
+
+}
+
+// handles the CBR info for job
+func (m *Repository) CBRHandler(res http.ResponseWriter, req *http.Request) {
+	//Create CTX
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	var cbr models.CBR
+
+	//Read the Request Body
+	resp, err := io.ReadAll(req.Body)
+
+	if err != nil {
+		http.Error(res, "Issue receving the data", http.StatusBadRequest)
+		return
+	}
+	if err = json.Unmarshal(resp, &cbr); err != nil {
+		http.Error(res, "Data not able to be read", http.StatusBadRequest)
+		return
+	}
+
+	filter := bson.D{{Key: "id", Value: cbr.JobID}, {Key: "uid", Value: cbr.UID}}
+	setStage := bson.D{{Key: "$set", Value: bson.D{{Key: "cbr", Value: cbr}}}}
+
+	m.DB.Collection("Jobs").FindOneAndUpdate(ctx, filter, setStage)
+
+	res.Header().Set("content-type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	res.Write([]byte("Job FSR info was updated!!"))
 
 }
 

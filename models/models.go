@@ -31,29 +31,13 @@ type Product struct {
 	Weight   float64 `bson:"weight" json:"weight"`
 }
 
-type Location struct {
-	Tank        string
-	Cane        string
-	Box         string
-	Position    string
-	PN          string
-	LN          string
-	Description string
-	Density     string
-	Vial_Init   string
-	Media       string
-}
-
 type FSR struct {
-	Num_Vials   string  `json:"num_vials,omitempty"`
-	Location    string  `json:"location,omitempty"`
-	Description string  `json:"raw_desc,omitempty"`
-	Due_Date    string  `bson:"due_date,omitempty" json:"due_date,omitempty"`
-	JobID       string  `bson:"jobid,omitempty" json:"jobid"`
-	UID         string  `bson:"uid" json:"uid"`
-	VID         string  `bson:"vid" json:"vid"`
-	Weight      float64 `bson:"weight,omitempty" json:"weight,omitempty"`
-	Status      string  `bson:"status,omitempty" json:"status,omitempty"`
+	Num_Vials   string `bson:"num_vials,omitempty" json:"num_vials,omitempty"`
+	Location    string `bson:"location,omitempty" json:"location,omitempty"`
+	Description string `bson:"raw_desc,omitempty" json:"raw_desc,omitempty"`
+	Due_Date    string `bson:"due_date,omitempty" json:"due_date,omitempty"`
+	JobID       string `bson:"jobid,omitempty" json:"jobid"`
+	UID         string `bson:"uid" json:"uid"`
 }
 
 type CBR struct {
@@ -67,7 +51,12 @@ type CBR struct {
 	Description    string `json:"cbr_desc,omitempty"`
 	Density        string `json:"density,omitempty"`
 	Vial_Init      string `json:"vial_init,omitempty"`
-	Location       string `bson:"location,omitempty"`
+	Tank           string `bson:"tank" json:"tank"`
+	Cane           string `bson:"cane" json:"cane"`
+	Box            string `bson:"box" json:"box"`
+	Position       string `bson:"pos" json:"pos"`
+	JobID          string `bson:"jobid,omitempty" json:"jobid"`
+	UID            string `bson:"uid" json:"uid"`
 }
 
 type Job struct {
