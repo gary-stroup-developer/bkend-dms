@@ -34,7 +34,7 @@ type Product struct {
 type FSR struct {
 	Num_Vials   string `bson:"num_vials,omitempty" json:"num_vials,omitempty"`
 	Location    string `bson:"location,omitempty" json:"location,omitempty"`
-	Description string `bson:"raw_desc,omitempty" json:"raw_desc,omitempty"`
+	Description string `bson:"fsr_desc,omitempty" json:"fsr_desc,omitempty"`
 	Due_Date    string `bson:"due_date,omitempty" json:"due_date,omitempty"`
 	JobID       string `bson:"jobid,omitempty" json:"jobid"`
 	UID         string `bson:"uid" json:"uid"`

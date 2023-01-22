@@ -260,7 +260,7 @@ func (m *Repository) UpdateJob(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	filter := bson.D{{Key: "_id", Value: job.OID}, {Key: "id", Value: job.ID}}
+	filter := bson.D{{Key: "_id", Value: job.OID}, {Key: "uid", Value: job.UID}, {Key: "id", Value: job.ID}}
 
 	var ReplacedDoc bson.M
 	err = m.DB.Collection("Jobs").FindOneAndReplace(context.TODO(), filter, &job).Decode(&ReplacedDoc)
@@ -451,9 +451,11 @@ func (m *Repository) FSRHandler(res http.ResponseWriter, req *http.Request) {
 
 	m.DB.Collection("Jobs").FindOne(ctx, filter).Decode(&job)
 
+	data, _ := json.Marshal(&job.FSR)
+
 	res.Header().Set("content-type", "application/json")
 	res.WriteHeader(http.StatusOK)
-	res.Write([]byte(job.FSR.Location))
+	res.Write(data)
 
 }
 
